@@ -82,10 +82,11 @@ def open_windows_choise():
         row_frame = tk.Frame(frame_conditions)
         row_frame.pack(fill="x", pady=2)
 
-        column_cb = ttk.Combobox(row_frame, values=numeric_columns, state="readonly")
+        max_length = max((len(col) for col in numeric_columns), default=10)  # Valeur par défaut pour éviter width=0
+
+        column_cb = ttk.Combobox(row_frame, values=numeric_columns, state="readonly", width=max_length)
         column_cb.pack(side="left", padx=5)
         column_cb.set(numeric_columns[0] if numeric_columns else "")
-
 
         operator_cb = ttk.Combobox(row_frame, values=operators, state="readonly")
         operator_cb.pack(side="left", padx=5)
