@@ -1,136 +1,206 @@
 import tkinter as tk
 import platform
 import pandas as pd
+import numpy as np
 from tkinter import ttk, filedialog, messagebox
 
 # Variables globales
-fichier_charger = False
 df = None
-add_button = None
-send_button = None
-conditions = []  # Liste qui contiendra les conditions
+conditions = {"num": [], "order": [], "bi": []}
+selection_list = []  # Stocke les lignes de sélection de colonnes/opérations
 
 def load_file():
-    global df, fichier_charger
+    global df
     file_path = filedialog.askopenfilename(
         filetypes=[("Fichiers Excel", "*.xlsx *.xls")]
     )
     if file_path:
         try:
             df = pd.read_excel(file_path)
-            fichier_charger = True
-            bouton_suivant.config(state=tk.NORMAL)
             messagebox.showinfo("Succès", "Fichier Excel chargé avec succès !")
+            bouton_suivant.config(state=tk.NORMAL)
         except Exception as e:
-            messagebox.showerror(
-                "Erreur", f"Impossible de charger le fichier : {e}")
+            messagebox.showerror("Erreur", f"Impossible de charger le fichier : {e}")
 
 def open_windows_choise():
-    global df, add_button, send_button, conditions
+    global df, selection_list
 
-    # Fenêtre principale
+    if df is None:
+        messagebox.showerror("Erreur", "Aucun fichier chargé.")
+        return
+
+    # Détection des types de colonnes
+    numeric_columns = df.select_dtypes(include=['number']).columns.tolist()
+    for col in numeric_columns:
+        if df[col].isna().sum()>0:
+            numeric_columns.remove(col)
+    cali_multiple = [col for col in df.columns if df[col].astype(str).str.contains('/').any()]
+    labels_columns = [col for col in df.columns if col not in numeric_columns + cali_multiple and df[col].notna().all()]
+
+    if not (numeric_columns or cali_multiple or labels_columns):
+        messagebox.showerror("Erreur", "Aucune colonne valide détectée.")
+        return
+
     window = tk.Toplevel()
     window.title("Choisir les conditions")
     if platform.system() == "Windows":
         window.state("zoomed")
 
-    # Détection des colonnes numériques
-    numeric_columns = df.select_dtypes(include=['number']).columns.tolist()
-    print(f"Colonnes numériques détectées: {numeric_columns}")  # Débogage
-    if not numeric_columns:
-        print("Aucune colonne numérique trouvée.")  # Débogage
-        messagebox.showerror("Erreur", "Aucune colonne numérique trouvée dans le fichier.")
-        window.destroy()
-        return
+    frame_selections = tk.Frame(window)
+    frame_selections.pack(pady=10)
 
-    operators = ["=", "<", ">", "⩽", "⩾", "≠"]
-    
-    # Cadre pour les conditions
-    frame_conditions = tk.Frame(window)
-    frame_conditions.pack(fill="both", expand=True, padx=10, pady=10)
-
-    # Définition des boutons AVANT validate_condition()
-    add_button = tk.Button(window, text="Ajouter", command=lambda: add_condition(), state=tk.DISABLED)
-    add_button.pack(pady=5)
-
-    send_button = tk.Button(window, text="Envoyer", command=lambda: make_calcul(), state=tk.DISABLED)
-    send_button.pack(pady=5)
-
-    def validate_condition(event=None):
-        """Active ou désactive les boutons en fonction de la validité de la dernière condition."""
-        if not conditions:
-            add_button.config(state=tk.DISABLED)
-            send_button.config(state=tk.DISABLED)
-            return
-        
-        column, operator, value = conditions[-1]  # Dernière ligne ajoutée
-        
-        is_valid = (
-            column.get() in numeric_columns and  # Colonne doit être valide     
-            operator.get() in operators and      # Opérateur valide
-            value.get().strip() != "" and value.get().replace(".", "", 1).isdigit()   # Valeur numérique
-        )
-        
-        state = tk.NORMAL if is_valid else tk.DISABLED
-        add_button.config(state=state)
-        send_button.config(state=state)
-
-
-
-    def add_condition():
-        """Ajoute une nouvelle ligne de critères."""
-        row_frame = tk.Frame(frame_conditions)
+    def add_selection_row():
+        """Ajoute une nouvelle ligne de sélection pour colonne et type d'opération."""
+        if selection_list:
+            last_col, last_op = selection_list[-1]
+            open_selected_window(last_col.get(), last_op.get())
+        row_frame = tk.Frame(frame_selections)
         row_frame.pack(fill="x", pady=2)
+        max_length = max((len(col) for col in numeric_columns), default=10)  
 
-        max_length = max((len(col) for col in numeric_columns), default=10)  # Valeur par défaut pour éviter width=0
-
-        column_cb = ttk.Combobox(row_frame, values=numeric_columns, state="readonly", width=max_length)
+        # Liste déroulante pour choisir une colonne
+        all_columns = numeric_columns + cali_multiple + labels_columns
+        all_columns = [col for col in df.columns if col in all_columns]
+        column_cb = ttk.Combobox(row_frame, values=all_columns, state="readonly", width=max_length)
         column_cb.pack(side="left", padx=5)
-        column_cb.set(numeric_columns[0] if numeric_columns else "")
+        
+        # Liste déroulante pour choisir le type d'opération
+        operation_cb = ttk.Combobox(row_frame, state="readonly")
+        operation_cb.pack(side="left", padx=5)
 
-        operator_cb = ttk.Combobox(row_frame, values=operators, state="readonly")
-        operator_cb.pack(side="left", padx=5)
-        operator_cb.set(operators[0])
+        def update_operations(event):
+            """Met à jour les opérations possibles selon la colonne sélectionnée."""
+            selected_col = column_cb.get()
+            if selected_col in numeric_columns:
+                operation_cb["values"] = ["Numérique"]
+            elif selected_col in cali_multiple:
+                operation_cb["values"] = ["Binarisation"]
+            elif selected_col in labels_columns:
+                operation_cb["values"] = ["Binarisation", "Order"]
+            operation_cb.current(0)
 
-        value_entry = tk.Entry(row_frame)
-        value_entry.pack(side="left", padx=5)
+        column_cb.bind("<<ComboboxSelected>>", update_operations)
 
-        operator_cb.bind("<<ComboboxSelected>>", validate_condition)
-        value_entry.bind("<KeyRelease>", validate_condition)
+        # Ajouter la ligne aux sélections
+        selection_list.append((column_cb, operation_cb))
 
-        # Ajouter la condition à la liste
-        conditions.append((column_cb, operator_cb, value_entry))
-        validate_condition()  # Vérifier après l'ajout d'une nouvelle ligne
+    # Bouton pour ajouter une ligne
+    tk.Button(window, text="Ajouter", command=add_selection_row).pack(pady=5)
 
-    add_condition()  # Ajoute une première ligne par défaut
+    def send_conditions():
+        """Ouvre la dernière condition et exécute make_calcul après la fermeture de la fenêtre."""
+        if selection_list:
+            last_col, last_op = selection_list[-1]
+            window = open_selected_window(last_col.get(), last_op.get())
+            
+            if window:  # Vérifier si la fenêtre a bien été créée
+                window.wait_window()  # Attendre que la fenêtre soit fermée
+            
+            make_calcul() 
+    # Bouton pour envoyer et calculer
+    tk.Button(window, text="Envoyer", command=send_conditions).pack(pady=10)
 
+    # Ajouter une première ligne par défaut
+    add_selection_row()
 
     window.mainloop()
 
+def open_selected_window(column, operation):
+    if operation == "Numérique":
+        return open_numeric_window(column)
+    elif operation == "Order":
+        return open_order_window(column)
+    elif operation == "Binarisation":
+        return open_binarization_window(column)
+    return None
+
+def open_numeric_window(column):
+    """Fenêtre pour les conditions numériques."""
+    num_window = tk.Toplevel()
+    num_window.title(f"Condition Numérique - {column}")
+    if platform.system() == "Windows":
+        num_window.state("zoomed")
+    tk.Label(num_window, text=f"Colonne : {column}").pack()
+
+    operators = ["=", "<", ">", "⩽", "⩾", "≠"]
+    operator_cb = ttk.Combobox(num_window, values=operators, state="readonly")
+    operator_cb.pack(pady=5)
+
+    value_entry = tk.Entry(num_window)
+    value_entry.pack(pady=5)
+
+    def save_numeric_condition():
+        op = operator_cb.get()
+        val = value_entry.get()
+        if op and val.replace(".", "", 1).isdigit():
+            conditions["num"].append([column, op, float(val)])
+            messagebox.showinfo("Succès", "Condition ajoutée avec succès")
+            num_window.destroy()
+
+    tk.Button(num_window, text="Ajouter", command=save_numeric_condition).pack(pady=10)
+    return num_window
+
+def open_order_window(column):
+    """Fenêtre pour ordonner les valeurs textuelles."""
+    order_window = tk.Toplevel()
+    order_window.title(f"Order - {column}")
+    if platform.system() == "Windows":
+        order_window.state("zoomed")
+    tk.Label(order_window, text=f"Colonne : {column}").pack()
+
+    value_frames = []
+    for value in (df[column].unique()):
+        frame = tk.Frame(order_window)
+        frame.pack()
+        tk.Label(frame, text=value).pack(side="left")
+        entry = tk.Entry(frame, width=5)
+        entry.pack(side="left")
+        value_frames.append((value, entry))
+
+    def save_order_condition():
+        condition_list = [column]
+        for value, entry in value_frames:
+            num = entry.get()
+            if num.isdigit():
+                condition_list.append((value, int(num)))
+        if len(condition_list) > 1:
+            conditions["order"].append(condition_list)
+            messagebox.showinfo("Succès", "Ordre ajouté avec succès")
+            order_window.destroy()
+
+    tk.Button(order_window, text="Ajouter", command=save_order_condition).pack(pady=10)
+    return order_window
+def open_binarization_window(column):
+    """Fenêtre pour binariser les valeurs textuelles."""
+    bin_window = tk.Toplevel()
+    bin_window.title(f"Binarisation - {column}")
+    if platform.system() == "Windows":
+        bin_window.state("zoomed")
+    tk.Label(bin_window, text=f"Colonne : {column}").pack()
+
+    value_vars = {}
+    for value in (df[column].unique()):
+        var = tk.BooleanVar()
+        tk.Checkbutton(bin_window, text=value, variable=var).pack(anchor="w")
+        value_vars[value] = var
+
+    def save_binarization_condition():
+        selected_values = [value for value, var in value_vars.items() if var.get()]
+        if selected_values:
+            conditions["bi"].append([column] + selected_values)
+            messagebox.showinfo("Succès", "Binarisation ajoutée avec succès")
+            bin_window.destroy()
+
+    tk.Button(bin_window, text="Ajouter", command=save_binarization_condition).pack(pady=10)
+    return bin_window
+
 def make_calcul():
-    """Effectue les calculs sur les conditions sélectionnées."""
-    selected_conditions = []
     
-    # Récupère les conditions sélectionnées (sélectionnées dans les cases)
-    for col_cb, op_cb, val_entry in conditions:
-        column = col_cb.get()
-        operator = op_cb.get()
-        value = val_entry.get()
-        
-        # Si tout est valide, ajouter à la liste des conditions sélectionnées
-        if column  and operator and value:
-            selected_conditions.append((column, operator, value))
-    operator_suffixes = {
-            "=": "Te",
-            "<": "Ti",
-            ">": "Ts",
-            "⩽": "Tie",
-            "⩾": "Tse",
-            "≠": "Td"
-        }
-    
-    for col, op, val in selected_conditions:
-        name = f"{col}_{operator_suffixes[op]}{val}"
+    for liste_num in conditions['num']:
+        name_col = liste_num[0] + str(liste_num[1]) + str(liste_num[2]).replace('.0','')
+        col_index = df.columns.get_loc(liste_num[0])
+        df.insert(col_index + 1, name_col, df[liste_num[0]] * 2) 
+        op = liste_num[1]
         if op == "⩽":
             op = "<="
         elif op == "⩾":
@@ -139,18 +209,32 @@ def make_calcul():
             op = "!="
         elif op == "=":
             op = "=="
-        
-        df[name] = df[col].apply(lambda x: eval(f"x {op} {val}"))
-        df[name] = df[name].astype(int)
+        df[name_col] = df[liste_num[0]].apply(lambda x: eval(f"x {op} {liste_num[2]}"))
+        df[name_col] = df[name_col].astype(int)
+
+    for order_condition in conditions["order"]:
+        nom_colonne = order_condition[0]
+        mapping_dict = {value: value_int for value, value_int in order_condition[1:]}  
+        col_index = df.columns.get_loc(nom_colonne)
+        new_col_name = f"{nom_colonne}_Numeric" 
+        df.insert(col_index + 1, new_col_name, df[nom_colonne] * 2) 
+        df[new_col_name] = df[nom_colonne].map(mapping_dict)
+
+    for liste_bi  in conditions["bi"]:
+        nom_colonne = liste_bi[0]
+        col_index = df.columns.get_loc(nom_colonne)
+        for i in range(1, len(liste_bi)):
+            name = nom_colonne + "_" + liste_bi[i]
+            df.insert(col_index + 1, name, df[nom_colonne] * 2) 
+            df[name] = np.where(df[nom_colonne] == liste_bi[i], 1, 0)
     if filepath := filedialog.asksaveasfilename(
-        defaultextension=".xlsx", filetypes=[("Excel files", "*.xlsx")]
-    ):
+            defaultextension=".xlsx", filetypes=[("Excel files", "*.xlsx")], 
+        ):
         try:
             with pd.ExcelWriter(filepath) as writer:
                 df.to_excel(writer, index=False)
             messagebox.showinfo(
                 "Succès", f"Résultats enregistrés dans {filepath}")
-            # Fermer toues les  fenêtres
             root.destroy()
             
         except Exception as e:
@@ -159,18 +243,15 @@ def make_calcul():
 
 # Fenêtre principale
 root = tk.Tk()
-root.title("Recode")
+root.title("Recodes")
 
 if platform.system() == "Windows":
     root.state("zoomed")
 
-tk.Label(root, text="Bienvenue dans l'application de Création de Recode").pack(pady=20)
-
+tk.Label(root, text="Bienvenue dans l'application de Création de Recodes").pack(pady=20)
 tk.Button(root, text="Charger un fichier Excel", command=load_file).pack(pady=10)
 
-# Bouton suivant qui ouvre la fenêtre des conditions
-bouton_suivant = tk.Button(
-    root, text="Suivant", command=open_windows_choise, state=tk.DISABLED, )
+bouton_suivant = tk.Button(root, text="Suivant", command=open_windows_choise, state=tk.DISABLED)
 bouton_suivant.pack()
 
 root.mainloop()
