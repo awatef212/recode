@@ -179,11 +179,22 @@ def open_binarization_window(column):
     tk.Label(bin_window, text=f"Colonne : {column}").pack()
 
     value_vars = {}
-    for value in (df[column].unique()):
-        var = tk.BooleanVar()
-        tk.Checkbutton(bin_window, text=value, variable=var).pack(anchor="w")
-        value_vars[value] = var
-
+    if df[column].astype(str).str.contains('/').any():
+        liste = pd.unique(df[column])
+        liste = [x for x in liste if str(x) != 'nan']
+        features = set()
+        for path in liste:
+            features.update(path.strip('/').split('/'))
+        
+        for value in list(features):
+            var = tk.BooleanVar()
+            tk.Checkbutton(bin_window, text=value, variable=var).pack(anchor="w")
+            value_vars[value] = var
+    else:
+        for value in (df[column].unique()):
+            var = tk.BooleanVar()
+            tk.Checkbutton(bin_window, text=value, variable=var).pack(anchor="w")
+            value_vars[value] = var
     def save_binarization_condition():
         selected_values = [value for value, var in value_vars.items() if var.get()]
         if selected_values:
@@ -195,10 +206,12 @@ def open_binarization_window(column):
     return bin_window
 
 def make_calcul():
-    
+    global df, conditions
     for liste_num in conditions['num']:
         name_col = liste_num[0] + str(liste_num[1]) + str(liste_num[2]).replace('.0','')
         col_index = df.columns.get_loc(liste_num[0])
+        if name_col in df.columns:
+            df = df.drop(columns=[name_col])
         df.insert(col_index + 1, name_col, df[liste_num[0]] * 2) 
         op = liste_num[1]
         if op == "⩽":
@@ -217,16 +230,21 @@ def make_calcul():
         mapping_dict = {value: value_int for value, value_int in order_condition[1:]}  
         col_index = df.columns.get_loc(nom_colonne)
         new_col_name = f"{nom_colonne}_Numeric" 
+        if new_col_name in df.columns:
+            df = df.drop(columns=[new_col_name])
         df.insert(col_index + 1, new_col_name, df[nom_colonne] * 2) 
         df[new_col_name] = df[nom_colonne].map(mapping_dict)
 
     for liste_bi  in conditions["bi"]:
         nom_colonne = liste_bi[0]
-        col_index = df.columns.get_loc(nom_colonne)
         for i in range(1, len(liste_bi)):
             name = nom_colonne + "_" + liste_bi[i]
+            if name in df.columns:
+                df = df.drop(columns=[name])
+            col_index = df.columns.get_loc(nom_colonne)
             df.insert(col_index + 1, name, df[nom_colonne] * 2) 
-            df[name] = np.where(df[nom_colonne] == liste_bi[i], 1, 0)
+            df[name] = df[nom_colonne].astype(str).apply(lambda x: 1 if liste_bi[i] in x else 0)
+
     if filepath := filedialog.asksaveasfilename(
             defaultextension=".xlsx", filetypes=[("Excel files", "*.xlsx")], 
         ):
