@@ -237,16 +237,29 @@ def make_calcul():
         df.insert(col_index + 1, new_col_name, df[nom_colonne] * 2) 
         df[new_col_name] = df[nom_colonne].map(mapping_dict)
 
-    for liste_bi  in conditions["bi"]:
+    for liste_bi in conditions["bi"]:
         nom_colonne = liste_bi[0]
-        for i in range(1, len(liste_bi)):
-            name = nom_colonne + "_" + liste_bi[i]
+        valeurs = liste_bi[1:]
+
+        # Colonnes individuelles (comme avant)
+        for val in valeurs:
+            name = f"{nom_colonne}_{val}"
             if name in df.columns:
                 df = df.drop(columns=[name])
             col_index = df.columns.get_loc(nom_colonne)
-            df.insert(col_index + 1, name, df[nom_colonne] * 2) 
-            df[name] = df[nom_colonne].astype(str).apply(lambda x: 1 if liste_bi[i] in x.split('/') else 0)
+            df.insert(col_index + 1, name, df[nom_colonne] * 2)
+            df[name] = df[nom_colonne].astype(str).apply(lambda x: 1 if val in x.split('/') else 0)
 
+        # Nouvelle colonne combinée
+        combo_name = nom_colonne + "_" + " + ".join(valeurs)
+        if combo_name in df.columns:
+            df = df.drop(columns=[combo_name])
+        col_index = df.columns.get_loc(nom_colonne)
+        df.insert(col_index + 1, combo_name, df[nom_colonne] * 2)
+        df[combo_name] = df[nom_colonne].astype(str).apply(
+            lambda x: 1 if any(val in x.split('/') for val in valeurs) else 0
+        )
+    
     if filepath := filedialog.asksaveasfilename(
             defaultextension=".xlsx", filetypes=[("Excel files", "*.xlsx")], 
         ):
