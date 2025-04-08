@@ -28,12 +28,10 @@ def open_windows_choise():
     if df is None:
         messagebox.showerror("Erreur", "Aucun fichier chargé.")
         return
-
+    root.withdraw()
     # Détection des types de colonnes
-    numeric_columns = df.select_dtypes(include=['number']).columns.tolist()
-    for col in numeric_columns:
-        if df[col].isna().sum()>0:
-            numeric_columns.remove(col)
+    numeric_columns = [col for col in df.select_dtypes(include=['number']).columns if df[col].notna().all()]
+
     cali_multiple = [col for col in df.columns if df[col].astype(str).str.contains('/').any()]
     labels_columns = [col for col in df.columns if col not in numeric_columns + cali_multiple and df[col].notna().all()]
 
@@ -80,7 +78,7 @@ def open_windows_choise():
             operation_cb.current(0)
 
         column_cb.bind("<<ComboboxSelected>>", update_operations)
-
+            # Bouton de suppression
         # Ajouter la ligne aux sélections
         selection_list.append((column_cb, operation_cb))
 
@@ -132,10 +130,14 @@ def open_numeric_window(column):
     def save_numeric_condition():
         op = operator_cb.get()
         val = value_entry.get()
-        if op and val.replace(".", "", 1).isdigit():
-            conditions["num"].append([column, op, float(val)])
+        try:
+            val = float(val)
+            conditions["num"].append([column, op, val])
             messagebox.showinfo("Succès", "Condition ajoutée avec succès")
             num_window.destroy()
+        except ValueError:
+            messagebox.showerror("Erreur", "Veuillez entrer une valeur numérique valide.")
+            
 
     tk.Button(num_window, text="Ajouter", command=save_numeric_condition).pack(pady=10)
     return num_window
@@ -243,7 +245,7 @@ def make_calcul():
                 df = df.drop(columns=[name])
             col_index = df.columns.get_loc(nom_colonne)
             df.insert(col_index + 1, name, df[nom_colonne] * 2) 
-            df[name] = df[nom_colonne].astype(str).apply(lambda x: 1 if liste_bi[i] in x else 0)
+            df[name] = df[nom_colonne].astype(str).apply(lambda x: 1 if liste_bi[i] in x.split('/') else 0)
 
     if filepath := filedialog.asksaveasfilename(
             defaultextension=".xlsx", filetypes=[("Excel files", "*.xlsx")], 
