@@ -152,6 +152,13 @@ def open_numeric_window(column, column_cb, operation_cb):
     """Fenêtre pour les conditions numériques."""
     num_window = tk.Toplevel()
     num_window.title(f"Condition Numérique - {column}")
+    condition_added = [False]
+    def on_closing():
+        if not condition_added[0]:
+            messagebox.showwarning("Attention", "Vous devez ajouter une condition avant de fermer.")
+        else:
+            num_window.destroy()
+    num_window.protocol("WM_DELETE_WINDOW", on_closing)
     if platform.system() == "Windows":
         num_window.state("zoomed")
     tk.Label(num_window, text=f"Colonne : {column}").pack()
@@ -177,6 +184,7 @@ def open_numeric_window(column, column_cb, operation_cb):
             condition_text = f"{column} {op} {val}"
             label = tk.Label(operation_cb.master, text=condition_text, anchor="w")
             label.pack(side="left", padx=10)
+            condition_added[0] = True
             num_window.destroy()
         except ValueError:
             messagebox.showerror("Erreur", "Veuillez entrer une valeur numérique valide.")
@@ -189,6 +197,16 @@ def open_order_window(column, column_cb, operation_cb):
     """Fenêtre pour ordonner les valeurs textuelles."""
     order_window = tk.Toplevel()
     order_window.title(f"Order - {column}")
+    condition_added = [False]
+
+    def on_closing():
+        if not condition_added[0]:
+            messagebox.showwarning("Attention", "Vous devez ajouter une condition avant de fermer.")
+        else:
+            order_window.destroy()
+
+    order_window.protocol("WM_DELETE_WINDOW", on_closing)
+
     if platform.system() == "Windows":
         order_window.state("zoomed")
     tk.Label(order_window, text=f"Colonne : {column}").pack()
@@ -219,6 +237,7 @@ def open_order_window(column, column_cb, operation_cb):
             # order_str = ", ".join([f"{v}→{n}" for v, n in condition_list[1:]])
             label = tk.Label(operation_cb.master, text=order_str, fg="blue", anchor="w")
             label.pack(side="left", padx=10)
+            condition_added[0] = True
             order_window.destroy()
 
     tk.Button(order_window, text="Ajouter", command=save_order_condition).pack(pady=10)
@@ -227,6 +246,16 @@ def open_binarization_window(column, column_cb, operation_cb):
     """Fenêtre pour binariser les valeurs textuelles."""
     bin_window = tk.Toplevel()
     bin_window.title(f"Binarisation - {column}")
+    condition_added = [False]
+
+    def on_closing():
+        if not condition_added[0]:
+            messagebox.showwarning("Attention", "Vous devez ajouter une condition avant de fermer.")
+        else:
+            bin_window.destroy()
+
+    bin_window.protocol("WM_DELETE_WINDOW", on_closing)
+
     if platform.system() == "Windows":
         bin_window.state("zoomed")
     
@@ -270,10 +299,12 @@ def open_binarization_window(column, column_cb, operation_cb):
             operation_cb.config(state="disabled")
             if hasattr(column_cb, "stat_label") and column_cb.stat_label.winfo_exists():
                 column_cb.stat_label.destroy()
-            bi_text = f"{column} : " + ", ".join(selected_values)
+            bi_text = f"{column} : " + ", ".join(
+                    str(val) if pd.notna(val) else "NaN" for val in selected_values
+                )
             label = tk.Label(operation_cb.master, text=bi_text, fg="purple", anchor="w")
             label.pack(side="left", padx=10)
-
+            condition_added[0] = True
             bin_window.destroy()
 
     tk.Button(bin_window, text="Ajouter", command=save_binarization_condition).pack(pady=10)
