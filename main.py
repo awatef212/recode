@@ -229,8 +229,21 @@ def open_binarization_window(column, column_cb, operation_cb):
     bin_window.title(f"Binarisation - {column}")
     if platform.system() == "Windows":
         bin_window.state("zoomed")
+    
     tk.Label(bin_window, text=f"Colonne : {column}").pack()
+    # 👇 Bloc pour afficher les fréquences
+    frame_stats = tk.Frame(bin_window)
+    frame_stats.pack(pady=5, anchor="w")
 
+    value_counts = df[column].astype(str).value_counts(dropna=False)
+    total = len(df)
+
+    for val, count in value_counts.items():
+        pct = count / total * 100
+        if pct > 5:
+            # Afficher uniquement les valeurs avec un pourcentage supérieur à 5%
+            line = f"{val} : {count} ({pct:.1f}%)"
+            tk.Label(frame_stats, text=line, anchor="w", justify="left").pack(anchor="w")
     value_vars = {}
     if df[column].astype(str).str.contains('/').any():
         liste = pd.unique(df[column])
