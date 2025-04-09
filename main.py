@@ -64,7 +64,10 @@ def open_windows_choise():
         all_columns = [col for col in df.columns if col in all_columns]
         column_cb = ttk.Combobox(row_frame, values=all_columns, state="readonly", width=max_length)
         column_cb.pack(side="left", padx=5)
-        
+        column_cb.stat_label = stat_label
+        stat_label.pack(side="left", padx=10)
+        column_cb.stat_label = stat_label
+
         # Liste déroulante pour choisir le type d'opération
         operation_cb = ttk.Combobox(row_frame, state="readonly")
         operation_cb.pack(side="left", padx=5)
@@ -169,6 +172,8 @@ def open_numeric_window(column, column_cb, operation_cb):
             messagebox.showinfo("Succès", "Condition ajoutée avec succès")
             column_cb.config(state="disabled")
             operation_cb.config(state="disabled")
+            if hasattr(column_cb, "stat_label") and column_cb.stat_label.winfo_exists():
+                column_cb.stat_label.destroy()
             num_window.destroy()
         except ValueError:
             messagebox.showerror("Erreur", "Veuillez entrer une valeur numérique valide.")
@@ -205,6 +210,8 @@ def open_order_window(column, column_cb, operation_cb):
             messagebox.showinfo("Succès", "Ordre ajouté avec succès")
             column_cb.config(state="disabled")
             operation_cb.config(state="disabled")
+            if hasattr(column_cb, "stat_label") and column_cb.stat_label.winfo_exists():
+                column_cb.stat_label.destroy()
             order_window.destroy()
 
     tk.Button(order_window, text="Ajouter", command=save_order_condition).pack(pady=10)
@@ -241,6 +248,8 @@ def open_binarization_window(column, column_cb, operation_cb):
             messagebox.showinfo("Succès", "Binarisation ajoutée avec succès")
             column_cb.config(state="disabled")
             operation_cb.config(state="disabled")
+            if hasattr(column_cb, "stat_label") and column_cb.stat_label.winfo_exists():
+                column_cb.stat_label.destroy()
             bin_window.destroy()
 
     tk.Button(bin_window, text="Ajouter", command=save_binarization_condition).pack(pady=10)
