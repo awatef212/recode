@@ -30,10 +30,10 @@ def open_windows_choise():
         return
     root.withdraw()
     # Détection des types de colonnes
-    numeric_columns = [col for col in df.select_dtypes(include=['number']).columns if df[col].notna().all()]
+    numeric_columns = [col for col in df.select_dtypes(include=['number']).columns]
 
     cali_multiple = [col for col in df.columns if df[col].astype(str).str.contains('/').any()]
-    labels_columns = [col for col in df.columns if col not in numeric_columns + cali_multiple and df[col].notna().all()]
+    labels_columns = [col for col in df.columns if col not in numeric_columns + cali_multiple]
 
     if not (numeric_columns or cali_multiple or labels_columns):
         messagebox.showerror("Erreur", "Aucune colonne valide détectée.")
@@ -51,11 +51,14 @@ def open_windows_choise():
         """Ajoute une nouvelle ligne de sélection pour colonne et type d'opération."""
         if selection_list:
             last_col, last_op = selection_list[-1]
-            open_selected_window(last_col.get(), last_op.get())
+            open_selected_window(last_col.get(), last_op.get(), last_col, last_op)
+        
         row_frame = tk.Frame(frame_selections)
         row_frame.pack(fill="x", pady=2)
-        max_length = max((len(col) for col in numeric_columns), default=10)  
-
+        max_length = max((len(col) for col in numeric_columns), default=10) + 2
+        # Zone d'affichage des statistiques
+        stat_label = tk.Label(row_frame, text="", justify="left", anchor="w")
+        stat_label.pack(side="left", padx=10)
         # Liste déroulante pour choisir une colonne
         all_columns = numeric_columns + cali_multiple + labels_columns
         all_columns = [col for col in df.columns if col in all_columns]
@@ -65,18 +68,48 @@ def open_windows_choise():
         # Liste déroulante pour choisir le type d'opération
         operation_cb = ttk.Combobox(row_frame, state="readonly")
         operation_cb.pack(side="left", padx=5)
+        
 
         def update_operations(event):
             """Met à jour les opérations possibles selon la colonne sélectionnée."""
             selected_col = column_cb.get()
+            text = ""
             if selected_col in numeric_columns:
-                operation_cb["values"] = ["Numérique"]
-            elif selected_col in cali_multiple:
-                operation_cb["values"] = ["Binarisation"]
-            elif selected_col in labels_columns:
-                operation_cb["values"] = ["Binarisation", "Order"]
-            operation_cb.current(0)
+                col_data = df[selected_col].dropna()
+                total = len(df[selected_col])
+                nan_count = df[selected_col].isna().sum()
+                nan_pct = round(nan_count / total * 100, 2)
 
+                text += f"M: {col_data.mean():.1f},  mi: {col_data.min():.1f}, ma: {col_data.max():.1f}\n"
+                text += f"Q1: {col_data.quantile(0.25):.1f}, Q2: {col_data.median():.1f}, Q3: {col_data.quantile(0.75):.1f}\n"
+                text += f"Vide: {nan_count} ({nan_pct}%) BT: {total}"
+                
+                operation_cb["values"] = ["Numérique"]
+                
+            elif selected_col in cali_multiple:
+                liste = pd.unique(df[selected_col])
+                liste = [x for x in liste if str(x) != 'nan']
+                features = set()
+                for path in liste:
+                    features.update(path.strip('/').split('/'))
+                total = len(df)
+                counts = {feat: df[selected_col].astype(str).apply(lambda x: feat in x.split('/')).sum() for feat in features}
+                #sort counts
+                counts = dict(sorted(counts.items(), key=lambda item: item[1], reverse=True))
+                text = "\n".join([f"{k}: {v} ({v/total*100:.1f}%)" for k, v in counts.items()])
+
+                operation_cb["values"] = ["Binarisation"]
+                
+            elif selected_col in labels_columns:
+                counts = df[selected_col].value_counts(dropna=False)
+                total = len(df)
+                text = "\n".join([f"{k}: {v} ({v/total*100:.1f}%)" for k, v in counts.items()])
+                
+                operation_cb["values"] = ["Binarisation", "Order"]
+            
+            
+            operation_cb.current(0)
+            stat_label.config(text=text)
         column_cb.bind("<<ComboboxSelected>>", update_operations)
             # Bouton de suppression
         # Ajouter la ligne aux sélections
@@ -103,16 +136,16 @@ def open_windows_choise():
 
     window.mainloop()
 
-def open_selected_window(column, operation):
+def open_selected_window(column, operation, column_cb=None, operation_cb=None):
     if operation == "Numérique":
-        return open_numeric_window(column)
+        return open_numeric_window(column, column_cb, operation_cb)
     elif operation == "Order":
-        return open_order_window(column)
+        return open_order_window(column, column_cb, operation_cb)
     elif operation == "Binarisation":
-        return open_binarization_window(column)
+        return open_binarization_window(column, column_cb, operation_cb)
     return None
 
-def open_numeric_window(column):
+def open_numeric_window(column, column_cb, operation_cb):
     """Fenêtre pour les conditions numériques."""
     num_window = tk.Toplevel()
     num_window.title(f"Condition Numérique - {column}")
@@ -134,6 +167,8 @@ def open_numeric_window(column):
             val = float(val)
             conditions["num"].append([column, op, val])
             messagebox.showinfo("Succès", "Condition ajoutée avec succès")
+            column_cb.config(state="disabled")
+            operation_cb.config(state="disabled")
             num_window.destroy()
         except ValueError:
             messagebox.showerror("Erreur", "Veuillez entrer une valeur numérique valide.")
@@ -142,7 +177,7 @@ def open_numeric_window(column):
     tk.Button(num_window, text="Ajouter", command=save_numeric_condition).pack(pady=10)
     return num_window
 
-def open_order_window(column):
+def open_order_window(column, column_cb, operation_cb):
     """Fenêtre pour ordonner les valeurs textuelles."""
     order_window = tk.Toplevel()
     order_window.title(f"Order - {column}")
@@ -168,11 +203,13 @@ def open_order_window(column):
         if len(condition_list) > 1:
             conditions["order"].append(condition_list)
             messagebox.showinfo("Succès", "Ordre ajouté avec succès")
+            column_cb.config(state="disabled")
+            operation_cb.config(state="disabled")
             order_window.destroy()
 
     tk.Button(order_window, text="Ajouter", command=save_order_condition).pack(pady=10)
     return order_window
-def open_binarization_window(column):
+def open_binarization_window(column, column_cb, operation_cb):
     """Fenêtre pour binariser les valeurs textuelles."""
     bin_window = tk.Toplevel()
     bin_window.title(f"Binarisation - {column}")
@@ -202,6 +239,8 @@ def open_binarization_window(column):
         if selected_values:
             conditions["bi"].append([column] + selected_values)
             messagebox.showinfo("Succès", "Binarisation ajoutée avec succès")
+            column_cb.config(state="disabled")
+            operation_cb.config(state="disabled")
             bin_window.destroy()
 
     tk.Button(bin_window, text="Ajouter", command=save_binarization_condition).pack(pady=10)
