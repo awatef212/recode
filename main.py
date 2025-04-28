@@ -160,6 +160,10 @@ def open_numeric_window(column, column_cb, operation_cb):
     num_window.transient(window_main)  # Rendre la fenêtre modale
     num_window.grab_set()  # Rendre la fenêtre modale
     condition_added = [False]
+    num_window.focus_set()
+    num_window.lift()
+    num_window.attributes('-topmost', True)
+    num_window.after(10, lambda: num_window.attributes('-topmost', False))
     def on_closing():
         if not condition_added[0]:
             messagebox.showwarning("Attention", "Vous devez ajouter une condition avant de fermer.")
@@ -207,6 +211,10 @@ def open_order_window(column, column_cb, operation_cb):
     condition_added = [False]
     order_window.transient(window_main)  # Rendre la fenêtre modale
     order_window.grab_set()  # Rendre la fenêtre modale
+    order_window.focus_set()
+    order_window.lift()
+    order_window.attributes('-topmost', True)
+    order_window.after(10, lambda: order_window.attributes('-topmost', False))
     def on_closing():
         if not condition_added[0]:
             messagebox.showwarning("Attention", "Vous devez ajouter une condition avant de fermer.")
@@ -252,11 +260,17 @@ def open_order_window(column, column_cb, operation_cb):
     return order_window
 def open_binarization_window(column, column_cb, operation_cb):
     """Fenêtre pour binariser les valeurs textuelles."""
+    global window_main
     bin_window = tk.Toplevel(column_cb.master)
     bin_window.title(f"Binarisation - {column}")
     condition_added = [False]
     bin_window.transient(window_main)  # Rendre la fenêtre modale
-    bin_window.grab_set()  # Rendre la fenêtre modale
+    bin_window.grab_set()  
+    bin_window.focus_set()
+    bin_window.lift()
+    bin_window.attributes('-topmost', True)
+    bin_window.after(10, lambda: bin_window.attributes('-topmost', False))
+    
     def on_closing():
         if not condition_added[0]:
             messagebox.showwarning("Attention", "Vous devez ajouter une condition avant de fermer.")
