@@ -8,6 +8,8 @@ from tkinter import ttk, filedialog, messagebox
 df = None
 conditions = {"num": [], "order": [], "bi": []}
 selection_list = []  # Stocke les lignes de sélection de colonnes/opérations
+root = None
+window_main = None 
 
 def load_file():
     global df
@@ -23,7 +25,7 @@ def load_file():
             messagebox.showerror("Erreur", f"Impossible de charger le fichier : {e}")
 
 def open_windows_choise():
-    global df, selection_list
+    global df, selection_list, window_main
 
     if df is None:
         messagebox.showerror("Erreur", "Aucun fichier chargé.")
@@ -40,6 +42,7 @@ def open_windows_choise():
         return
 
     window = tk.Toplevel()
+    window_main = window
     window.title("Choisir les conditions")
     if platform.system() == "Windows":
         window.state("zoomed")
@@ -51,8 +54,10 @@ def open_windows_choise():
         """Ajoute une nouvelle ligne de sélection pour colonne et type d'opération."""
         if selection_list:
             last_col, last_op = selection_list[-1]
+            if not last_col.get() or not last_op.get():
+                messagebox.showwarning("Attention", "Veuillez d'abord sélectionner une colonne et une opération.")
+                return
             open_selected_window(last_col.get(), last_op.get(), last_col, last_op)
-        
         row_frame = tk.Frame(frame_selections)
         row_frame.pack(fill="x", pady=2)
         max_length = max((len(col) for col in numeric_columns), default=10) + 2
@@ -152,6 +157,8 @@ def open_numeric_window(column, column_cb, operation_cb):
     """Fenêtre pour les conditions numériques."""
     num_window = tk.Toplevel()
     num_window.title(f"Condition Numérique - {column}")
+    num_window.transient(window_main)  # Rendre la fenêtre modale
+    num_window.grab_set()  # Rendre la fenêtre modale
     condition_added = [False]
     def on_closing():
         if not condition_added[0]:
@@ -198,7 +205,8 @@ def open_order_window(column, column_cb, operation_cb):
     order_window = tk.Toplevel()
     order_window.title(f"Order - {column}")
     condition_added = [False]
-
+    order_window.transient(window_main)  # Rendre la fenêtre modale
+    order_window.grab_set()  # Rendre la fenêtre modale
     def on_closing():
         if not condition_added[0]:
             messagebox.showwarning("Attention", "Vous devez ajouter une condition avant de fermer.")
@@ -244,10 +252,11 @@ def open_order_window(column, column_cb, operation_cb):
     return order_window
 def open_binarization_window(column, column_cb, operation_cb):
     """Fenêtre pour binariser les valeurs textuelles."""
-    bin_window = tk.Toplevel()
+    bin_window = tk.Toplevel(column_cb.master)
     bin_window.title(f"Binarisation - {column}")
     condition_added = [False]
-
+    bin_window.transient(window_main)  # Rendre la fenêtre modale
+    bin_window.grab_set()  # Rendre la fenêtre modale
     def on_closing():
         if not condition_added[0]:
             messagebox.showwarning("Attention", "Vous devez ajouter une condition avant de fermer.")
